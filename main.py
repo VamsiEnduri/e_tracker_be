@@ -23,7 +23,7 @@ conn = mysql.connector.connect(
     user=os.getenv("db_user"),
     password=os.getenv("db_password"),
     database=os.getenv("db_name"),
-    port=os.getenv("db_port")
+    port=int(os.getenv("db_port"))
 )
 
 cursor = conn.cursor(dictionary=True)
@@ -45,7 +45,12 @@ CREATE TABLE IF NOT EXISTS expenses(
 
 conn.commit()
 
+@app.get("/")
+def home():
 
+    return {
+        "message": "API Running Successfully"
+    }
 
 # -------------------- Add Expense --------------------
 @app.post("/add_expense")
