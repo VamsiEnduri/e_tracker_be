@@ -54,7 +54,7 @@ def home():
 
 # -------------------- Add Expense --------------------
 @app.post("/add_expense")
-def add_expense(data: dict):
+def add_expense(payload: dict):
 
     query = """
     INSERT INTO expenses
@@ -126,7 +126,7 @@ def get_single_expense(expense_id: int):
 
 # -------------------- Update Expense --------------------
 @app.put("/update_expense/{expense_id}")
-def update_expense(expense_id: int, data: dict):
+def update_expense(expense_id: int, payload: dict):
 
     query = """
     UPDATE expenses
