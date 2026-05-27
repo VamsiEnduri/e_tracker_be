@@ -1,327 +1,199 @@
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 import mysql.connector
+from fastapi.middleware.cors import CORSMiddleware
 import os
-
-# ======================================================
-# FASTAPI APP
-# ======================================================
 app = FastAPI()
+
+
 
 # ======================================================
 # CORS POLICY
 # ======================================================
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],     # Allow All Frontends
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["*"],     # GET, POST, PUT, DELETE
     allow_headers=["*"]
 )
 
-# ======================================================
-# DATABASE CONNECTION FUNCTION
-# ======================================================
-def get_db_connection():
+# -------------------- DB Connection --------------------
+conn = mysql.connector.connect(
+    host=os.getenv("db_host"),
+    user=os.getenv("db_user"),
+    password=os.getenv("db_password"),
+    database=os.getenv("db_name"),
+    port=int(os.getenv("db_port"))
+)
 
-    conn = mysql.connector.connect(
-        host=os.getenv("db_host"),
-        user=os.getenv("db_user"),
-        password=os.getenv("db_password"),
-        database=os.getenv("db_name"),
-        port=int(os.getenv("db_port"))
-    )
+cursor = conn.cursor(dictionary=True)
 
-    return conn
 
-# ======================================================
-# CREATE TABLE
-# ======================================================
-try:
 
-    conn = get_db_connection()
+# -------------------- Create Table --------------------
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS expenses(
+    expense_id INT AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(200),
+    amount FLOAT,
+    category VARCHAR(100),
+    payment_method VARCHAR(100),
+    expense_date DATE,
+    description TEXT
+)
+""")
 
-    cursor = conn.cursor(dictionary=True)
+conn.commit()
 
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS expenses(
-        expense_id INT AUTO_INCREMENT PRIMARY KEY,
-        title VARCHAR(200),
-        amount FLOAT,
-        category VARCHAR(100),
-        payment_method VARCHAR(100),
-        expense_date DATE,
-        description TEXT
-    )
-    """)
-
-    conn.commit()
-
-    cursor.close()
-    conn.close()
-
-    print("Table Checked Successfully")
-
-except Exception as e:
-
-    print("DB Error :", e)
-
-# ======================================================
-# HOME ROUTE
-# ======================================================
 @app.get("/")
 def home():
 
     return {
-        "message": "Expense Tracker API Running Successfully"
+        "message": "API Running Successfully"
     }
 
-# ======================================================
-# ADD EXPENSE
-# ======================================================
+# -------------------- Add Expense --------------------
 @app.post("/add_expense")
 def add_expense(data: dict):
 
-    try:
+    query = """
+    INSERT INTO expenses
+    (title, amount, category, payment_method, expense_date, description)
+    VALUES (%s,%s,%s,%s,%s,%s)
+    """
 
-        conn = get_db_connection()
+    values = (
+        data["title"],
+        data["amount"],
+        data["category"],
+        data["payment_method"],
+        data["expense_date"],
+        data["description"]
+    )
 
-        cursor = conn.cursor(dictionary=True)
+    cursor.execute(query, values)
+    conn.commit()
 
-        query = """
-        INSERT INTO expenses
-        (
-            title,
-            amount,
-            category,
-            payment_method,
-            expense_date,
-            description
-        )
-        VALUES (%s,%s,%s,%s,%s,%s)
-        """
+    return {
+        "message": "Expense Added Successfully"
+    }
 
-        values = (
-            data["title"],
-            data["amount"],
-            data["category"],
-            data["payment_method"],
-            data["expense_date"],
-            data["description"]
-        )
 
-        cursor.execute(query, values)
-
-        conn.commit()
-
-        cursor.close()
-        conn.close()
-
-        return {
-            "message": "Expense Added Successfully"
-        }
-
-    except Exception as e:
-
-        return {
-            "error": str(e)
-        }
-
-# ======================================================
-# GET ALL EXPENSES
-# ======================================================
+# -------------------- Get All Expenses --------------------
 @app.get("/get_expenses")
 def get_expenses():
 
-    try:
+    query = """
+    SELECT *
+    FROM expenses
+    ORDER BY expense_id DESC
+    """
 
-        conn = get_db_connection()
+    cursor.execute(query)
 
-        cursor = conn.cursor(dictionary=True)
+    data = cursor.fetchall()
 
-        query = """
-        SELECT *
-        FROM expenses
-        ORDER BY expense_id DESC
-        """
+    return {
+        "expenses": data
+    }
 
-        cursor.execute(query)
 
-        data = cursor.fetchall()
 
-        cursor.close()
-        conn.close()
 
-        return {
-            "expenses": data
-        }
-
-    except Exception as e:
-
-        return {
-            "error": str(e)
-        }
-
-# ======================================================
-# GET SINGLE EXPENSE
-# ======================================================
+# -------------------- Get Single Expense --------------------
 @app.get("/get_single_expense/{expense_id}")
 def get_single_expense(expense_id: int):
 
-    try:
+    query = """
+    SELECT *
+    FROM expenses
+    WHERE expense_id = %s
+    """
 
-        conn = get_db_connection()
+    cursor.execute(query, (expense_id,))
 
-        cursor = conn.cursor(dictionary=True)
+    data = cursor.fetchone()
 
-        query = """
-        SELECT *
-        FROM expenses
-        WHERE expense_id = %s
-        """
-
-        cursor.execute(query, (expense_id,))
-
-        data = cursor.fetchone()
-
-        cursor.close()
-        conn.close()
-
-        if data:
-
-            return {
-                "expense": data
-            }
-
+    if data:
         return {
-            "message": "Expense Not Found"
+            "expense": data
         }
 
-    except Exception as e:
+    return {
+        "message": "Expense Not Found"
+    }
 
-        return {
-            "error": str(e)
-        }
 
-# ======================================================
-# UPDATE EXPENSE
-# ======================================================
+# -------------------- Update Expense --------------------
 @app.put("/update_expense/{expense_id}")
 def update_expense(expense_id: int, data: dict):
 
-    try:
+    query = """
+    UPDATE expenses
+    SET
+        title=%s,
+        amount=%s,
+        category=%s,
+        payment_method=%s,
+        expense_date=%s,
+        description=%s
+    WHERE expense_id=%s
+    """
 
-        conn = get_db_connection()
+    values = (
+        data["title"],
+        data["amount"],
+        data["category"],
+        data["payment_method"],
+        data["expense_date"],
+        data["description"],
+        expense_id
+    )
 
-        cursor = conn.cursor(dictionary=True)
+    cursor.execute(query, values)
+    conn.commit()
 
-        query = """
-        UPDATE expenses
-        SET
-            title=%s,
-            amount=%s,
-            category=%s,
-            payment_method=%s,
-            expense_date=%s,
-            description=%s
-        WHERE expense_id=%s
-        """
+    return {
+        "message": "Expense Updated Successfully"
+    }
 
-        values = (
-            data["title"],
-            data["amount"],
-            data["category"],
-            data["payment_method"],
-            data["expense_date"],
-            data["description"],
-            expense_id
-        )
 
-        cursor.execute(query, values)
 
-        conn.commit()
 
-        cursor.close()
-        conn.close()
-
-        return {
-            "message": "Expense Updated Successfully"
-        }
-
-    except Exception as e:
-
-        return {
-            "error": str(e)
-        }
-
-# ======================================================
-# DELETE EXPENSE
-# ======================================================
+# -------------------- Delete Expense --------------------
 @app.delete("/delete_expense/{expense_id}")
 def delete_expense(expense_id: int):
 
-    try:
+    query = """
+    DELETE FROM expenses
+    WHERE expense_id=%s
+    """
 
-        conn = get_db_connection()
+    cursor.execute(query, (expense_id,))
+    conn.commit()
 
-        cursor = conn.cursor(dictionary=True)
+    return {
+        "message": "Expense Deleted Successfully"
+    }
 
-        query = """
-        DELETE FROM expenses
-        WHERE expense_id=%s
-        """
 
-        cursor.execute(query, (expense_id,))
 
-        conn.commit()
-
-        cursor.close()
-        conn.close()
-
-        return {
-            "message": "Expense Deleted Successfully"
-        }
-
-    except Exception as e:
-
-        return {
-            "error": str(e)
-        }
-
-# ======================================================
-# EXPENSE SUMMARY
-# ======================================================
+# -------------------- Expense Summary --------------------
 @app.get("/expense_summary")
 def expense_summary():
 
-    try:
+    query = """
+    SELECT
+        category,
+        SUM(amount) as total_amount
+    FROM expenses
+    GROUP BY category
+    """
 
-        conn = get_db_connection()
+    cursor.execute(query)
 
-        cursor = conn.cursor(dictionary=True)
+    data = cursor.fetchall()
 
-        query = """
-        SELECT
-            category,
-            SUM(amount) AS total_amount
-        FROM expenses
-        GROUP BY category
-        """
-
-        cursor.execute(query)
-
-        data = cursor.fetchall()
-
-        cursor.close()
-        conn.close()
-
-        return {
-            "summary": data
-        }
-
-    except Exception as e:
-
-        return {
-            "error": str(e)
-        }
-
+    return {
+        "summary": data
+    }
