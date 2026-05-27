@@ -1,16 +1,29 @@
 from fastapi import FastAPI
 import mysql.connector
-
+from fastapi.middleware.cors import CORSMiddleware
+import os
 app = FastAPI()
 
 
 
+# ======================================================
+# CORS POLICY
+# ======================================================
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],     # Allow All Frontends
+    allow_credentials=True,
+    allow_methods=["*"],     # GET, POST, PUT, DELETE
+    allow_headers=["*"]
+)
+
 # -------------------- DB Connection --------------------
 conn = mysql.connector.connect(
-    host="localhost",
-    user="root",
-    password="root",
-    database="expense_tracker"
+    host=os.getenv("db_host"),
+    user=os.getenv("db_user"),
+    password=os.getenv("db_password"),
+    database=os.getenv("db_name"),
+    port=os.getenv("db_port")
 )
 
 cursor = conn.cursor(dictionary=True)
